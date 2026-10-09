@@ -172,22 +172,23 @@ fn cmd_zones() -> Result<(), String> {
 
 fn cmd_probe(common: &Common) -> Result<(), String> {
     let mut dev = open_device(common)?;
-    if let Ok(devs) = device::scan() {
-        if let Some(d) = devs.iter().find(|d| d.node == dev.path) {
-            println!("node:     {}", d.node.display());
-            println!("hid id:   {}", d.id());
-            if !d.name.is_empty() {
-                println!("hid name: {}", d.name);
-            }
+    let detected = device::scan()
+        .ok()
+        .and_then(|devs| devs.into_iter().find(|d| d.node == dev.path));
+    if let Some(d) = detected {
+        println!("node:     {}", d.node.display());
+        println!("hid id:   {}", d.id());
+        if !d.name.is_empty() {
+            println!("hid name: {}", d.name);
         }
-    }
-    for (label, key) in [
-        ("product", "product"),
-        ("manufacturer", "manufacturer"),
-        ("serial", "serial"),
-    ] {
-        if let Some(v) = device::usb_string(&dev.path, key) {
-            println!("{label:<9} {v}");
+        for (label, key) in [
+            ("product", "product"),
+            ("manufacturer", "manufacturer"),
+            ("serial", "serial"),
+        ] {
+            if let Some(v) = device::usb_string(&d.sysfs, key) {
+                println!("{label:<9} {v}");
+            }
         }
     }
     match dev.status() {

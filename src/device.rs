@@ -31,6 +31,7 @@ fn hidraw_ioctl(kind: u8, len: usize) -> c_ulong {
 #[derive(Debug, Clone)]
 pub struct Detected {
     pub node: PathBuf,
+    pub sysfs: PathBuf,
     pub name: String,
 }
 
@@ -62,8 +63,11 @@ pub fn scan() -> io::Result<Vec<Detected>> {
             }
         }
         if vendor == Some(VID) && product == Some(PID) {
+            let sysfs = entry.path();
+            let node = PathBuf::from("/dev").join(sysfs.file_name().unwrap_or_default());
             out.push(Detected {
-                node: entry.path(),
+                node,
+                sysfs,
                 name,
             });
         }
