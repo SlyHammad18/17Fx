@@ -9,11 +9,14 @@
 - `set-all <color>` — every region at once
 - `off` / `on`
 - `send <hex>` — raw packet debugging (output/feature, `--dry-run`, `--read-ms`)
-- Session persistence: colors survive sleep and power-state changes
-- `--save`: commit to controller NVRAM so colors survive reboots
+- Session persistence: colors survive sleep, power-state changes and reboots
+  (power-state slots are committed by default; `--no-save` opts out)
 
 ## Planned (packet builders already exist in `src/protocol.rs`)
 
+- Touchpad lighting mode control — explore Dell BIOS tokens via libsmbios
+  (`smbios-token-ctl`) for an "on touch / always on" switch from Linux;
+  the AlienFX wire protocol itself has no command for it
 - `blink <zone> <color>` — pulse effect (CMD 0x02 `SET_BLINK_COLOR`)
 - `morph <zone> <color1> <color2>` — two-color morph (CMD 0x01 `SET_MORPH_COLOR`)
 - `speed <n>` — blink/morph tempo (CMD 0x0E, range 0x1E–0x3AE, lower = faster)
