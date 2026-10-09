@@ -1,0 +1,4 @@
+# AlienFX lighting controller (Alienware 15 R3 / 17 R4, USB 187c:0530)
+# Install: sudo cp 99-alienfx.rules /etc/udev/rules.d/
+#          sudo udevadm control --reload-rules && sudo udevadm trigger
+KERNEL=="hidraw*", ATTRS{idVendor}=="187c", ATTRS{idProduct}=="0530", MODE="0660", GROUP="plugdev", TAG+="uaccess"
