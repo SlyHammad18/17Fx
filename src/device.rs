@@ -126,73 +126,26 @@ impl Hidraw {
         Ok(())
     }
 
-    pub fn read_feature(&mut self) -> io::Result<[u8; protocol::PACKET_LEN]> {
-        let mut buf = [0u8; protocol::PACKET_LEN];
-        buf[0] = protocol::REPORT_ID;
-        let rc = unsafe {
-            ioctl(
-                self.file.as_raw_fd(),
-                hidraw_ioctl(0x07, buf.len()),
-                buf.as_mut_ptr(),
-            )
-        };
-        if rc < 0 {
-            return Err(io::Error::last_os_error());
-        }
-        Ok(buf)
-    }
-
-    pub fn status(&mut self) -> io::Result<u8> {
-        self.write_packet(&protocol::pkt_get_status())?;
-        let buf = self.read_feature()?;
-        Ok(buf.get(1).copied().unwrap_or(0))
-    }
-
     pub fn send_all(
         &mut self,
         packets: &[[u8; protocol::PACKET_LEN]],
         use_feature: bool,
         verbose: bool,
     ) -> io::Result<()> {
-        let mut feature_ok = true;
         for (i, pkt) in packets.iter().enumerate() {
             if verbose {
                 eprintln!("TX {:02x?}", pkt);
             }
-            if use_feature && feature_ok {
+            if use_feature {
                 self.write_feature(pkt)?;
             } else {
                 self.write_packet(pkt)?;
             }
-            if i + 1 < packets.len()
-                && !self.wait_ready(Duration::from_millis(25), &mut feature_ok)
-            {
-                std::thread::sleep(Duration::from_millis(10));
+            if i + 1 < packets.len() {
+                std::thread::sleep(Duration::from_millis(12));
             }
         }
         Ok(())
-    }
-
-    fn wait_ready(&mut self, budget: Duration, feature_ok: &mut bool) -> bool {
-        if !*feature_ok {
-            return false;
-        }
-        let deadline = Instant::now() + budget;
-        while Instant::now() < deadline {
-            match self.read_feature() {
-                Ok(buf) => {
-                    if buf.get(1) == Some(&protocol::STATUS_READY) {
-                        return true;
-                    }
-                    std::thread::sleep(Duration::from_millis(2));
-                }
-                Err(_) => {
-                    *feature_ok = false;
-                    return false;
-                }
-            }
-        }
-        false
     }
 
     pub fn read_for(&mut self, ms: u64) -> io::Result<Vec<Vec<u8>>> {

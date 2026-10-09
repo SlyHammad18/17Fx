@@ -72,10 +72,23 @@ fn color_parse() {
 #[test]
 fn set_color_sequence() {
     let pkts = apply::set_color_packets(0xF, (255, 0, 0), zones::ALL_ZONES_MASK, true);
-    assert_eq!(pkts.len(), 40);
+    assert_eq!(pkts.len(), 41);
+    assert_eq!(pkts[0], [0x02, 0x08, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(pkts[1], [0x02, 0x03, 0x01, 0x00, 0x00, 0x0F, 0xFF, 0x00, 0x00, 0, 0, 0]);
     assert_eq!(pkts.last().unwrap()[1], protocol::CMD_TRANSMIT_EXECUTE);
     let without_commit = apply::set_color_packets(0xF, (1, 2, 3), zones::ALL_ZONES_MASK, false);
     assert_eq!(without_commit.len(), 34);
+}
+
+#[test]
+fn apply_preamble() {
+    assert_eq!(
+        apply::apply_preamble(),
+        vec![
+            [0x02, 0x06, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0x02, 0x07, 0x04, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ]
+    );
 }
 
 #[test]

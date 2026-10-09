@@ -43,8 +43,8 @@ enum Command {
     Set {
         zone: String,
         color: String,
-        #[arg(long, help = "Also commit to controller NVRAM so colors survive reboots")]
-        save: bool,
+        #[arg(long = "no-save", help = "Skip writing power-state slots (live apply only)")]
+        no_save: bool,
         #[arg(long)]
         dry_run: bool,
         #[command(flatten)]
@@ -52,8 +52,8 @@ enum Command {
     },
     SetAll {
         color: String,
-        #[arg(long)]
-        save: bool,
+        #[arg(long = "no-save")]
+        no_save: bool,
         #[arg(long)]
         dry_run: bool,
         #[command(flatten)]
@@ -99,16 +99,16 @@ fn run(cmd: Command) -> Result<(), String> {
         Command::Set {
             zone,
             color,
-            save,
+            no_save,
             dry_run,
             common,
-        } => cmd_set(&zone, &color, save, dry_run, &common),
+        } => cmd_set(&zone, &color, !no_save, dry_run, &common),
         Command::SetAll {
             color,
-            save,
+            no_save,
             dry_run,
             common,
-        } => cmd_set("all", &color, save, dry_run, &common),
+        } => cmd_set("all", &color, !no_save, dry_run, &common),
         Command::Off { common } => {
             let mut dev = open_device(&common)?;
             dev.send_all(
@@ -171,7 +171,7 @@ fn cmd_zones() -> Result<(), String> {
 }
 
 fn cmd_probe(common: &Common) -> Result<(), String> {
-    let mut dev = open_device(common)?;
+    let dev = open_device(common)?;
     let detected = device::scan()
         .ok()
         .and_then(|devs| devs.into_iter().find(|d| d.node == dev.path));
@@ -191,19 +191,6 @@ fn cmd_probe(common: &Common) -> Result<(), String> {
             }
         }
     }
-    match dev.status() {
-        Ok(s) => {
-            let state = if s == protocol::STATUS_READY {
-                " (ready)"
-            } else if s == protocol::STATUS_BUSY {
-                " (busy)"
-            } else {
-                ""
-            };
-            println!("status:   0x{s:02X}{state}");
-        }
-        Err(e) => println!("status:   unavailable ({e})"),
-    }
     Ok(())
 }
 
@@ -220,7 +207,7 @@ fn cmd_set(
     if dry_run {
         println!("zone:   {zone} (mask 0x{mask:04X})");
         println!("color:  #{:02X}{:02X}{:02X}", rgb.0, rgb.1, rgb.2);
-        println!("save:   {save}");
+        println!("slots:  {}", if save { "write" } else { "skip (--no-save)" });
         println!("packets: {}", packets.len());
         for p in &packets {
             println!("{:02x?}", p);
@@ -228,6 +215,9 @@ fn cmd_set(
         return Ok(());
     }
     let mut dev = open_device(common)?;
+    dev.send_all(&apply::apply_preamble(), false, common.verbose)
+        .map_err(|e| e.to_string())?;
+    std::thread::sleep(std::time::Duration::from_millis(120));
     dev.send_all(&packets, false, common.verbose)
         .map_err(|e| e.to_string())?;
     println!(
@@ -236,7 +226,11 @@ fn cmd_set(
         rgb.0,
         rgb.1,
         rgb.2,
-        if save { " (committed to NVRAM)" } else { "" }
+        if save {
+            " (power-state slots updated)"
+        } else {
+            " (live only)"
+        }
     );
     Ok(())
 }

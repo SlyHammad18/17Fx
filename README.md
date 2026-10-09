@@ -45,11 +45,13 @@ Examples:
 alienfx set-all red
 alienfx set keyboard-left yellow
 alienfx set logo,touchpad "#00aaff"
-alienfx set all magenta --save
+alienfx set all magenta --no-save
 ```
 
-Without `--save`, colors survive sleep and power-state changes but reset on
-reboot. With `--save`, the controller stores them in NVRAM.
+Colors are written to the controller's power-state slots by default, so they
+survive power-state changes and reboots. `--no-save` applies live only and
+leaves the saved slots untouched — note that the power button follows the
+saved slots, so with `--no-save` it can revert to its factory charging morph.
 
 Useful flags: `--device /dev/hidrawN` (override auto-detection), `-v/--verbose`
 (packet hex dumps), `send --mode feature`, `send --read-ms N` (listen for
@@ -78,9 +80,12 @@ Aliases: `keyboard` = 0x000F (all four keyboard blocks), `all` = 0x7DEF
 
 ## Notes
 
+- Colors are committed to the controller's slots (states: boot, ac-sleep,
+  ac-charged, ac-charging, bat-sleep, bat-on, bat-crit), overwriting whatever
+  theme was stored there before — including factory indicators such as the
+  charging morph on the power button.
 - Touchpad lighting must be set to "always on" in the BIOS for the touchpad
   zone to respond.
-- The power-button zone can conflict with boot-state lighting settings.
 - The hidraw index can change after a replug; `alienfx list` shows the current
   node and `--device` overrides detection.
 - `send` expects packets starting with the report id `02`; without it you get
