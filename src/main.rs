@@ -45,6 +45,8 @@ enum Command {
         color: String,
         #[arg(long = "no-save", help = "Skip writing power-state slots (live apply only)")]
         no_save: bool,
+        #[arg(long, value_parser = clap::value_parser!(u8).range(0..=100), help = "Scale the color to 0-100% brightness")]
+        brightness: Option<u8>,
         #[arg(long)]
         dry_run: bool,
         #[command(flatten)]
@@ -54,6 +56,8 @@ enum Command {
         color: String,
         #[arg(long = "no-save")]
         no_save: bool,
+        #[arg(long, value_parser = clap::value_parser!(u8).range(0..=100))]
+        brightness: Option<u8>,
         #[arg(long)]
         dry_run: bool,
         #[command(flatten)]
@@ -64,6 +68,16 @@ enum Command {
         common: Common,
     },
     On {
+        #[command(flatten)]
+        common: Common,
+    },
+    Undim {
+        #[command(flatten)]
+        common: Common,
+    },
+    Dim {
+        #[arg(long, help = "Dim only while on battery power")]
+        battery_only: bool,
         #[command(flatten)]
         common: Common,
     },
@@ -100,15 +114,17 @@ fn run(cmd: Command) -> Result<(), String> {
             zone,
             color,
             no_save,
+            brightness,
             dry_run,
             common,
-        } => cmd_set(&zone, &color, !no_save, dry_run, &common),
+        } => cmd_set(&zone, &color, !no_save, brightness, dry_run, &common),
         Command::SetAll {
             color,
             no_save,
+            brightness,
             dry_run,
             common,
-        } => cmd_set("all", &color, !no_save, dry_run, &common),
+        } => cmd_set("all", &color, !no_save, brightness, dry_run, &common),
         Command::Off { common } => {
             let mut dev = open_device(&common)?;
             dev.send_all(
@@ -129,6 +145,45 @@ fn run(cmd: Command) -> Result<(), String> {
             )
             .map_err(|e| e.to_string())?;
             println!("all lights on");
+            Ok(())
+        }
+        Command::Undim { common } => {
+            let mut dev = open_device(&common)?;
+            dev.send_all(
+                &[
+                    protocol::pkt_dim(protocol::DIM_DISABLE, protocol::DIM_MODE_ALWAYS),
+                    protocol::pkt_transmit_execute(),
+                ],
+                false,
+                common.verbose,
+            )
+            .map_err(|e| e.to_string())?;
+            println!("dim disabled");
+            Ok(())
+        }
+        Command::Dim {
+            battery_only,
+            common,
+        } => {
+            let mut dev = open_device(&common)?;
+            let mode = if battery_only {
+                protocol::DIM_MODE_BATTERY_ONLY
+            } else {
+                protocol::DIM_MODE_ALWAYS
+            };
+            dev.send_all(
+                &[
+                    protocol::pkt_dim(protocol::DIM_ENABLE, mode),
+                    protocol::pkt_transmit_execute(),
+                ],
+                false,
+                common.verbose,
+            )
+            .map_err(|e| e.to_string())?;
+            println!(
+                "dim enabled{}",
+                if battery_only { " (battery only)" } else { "" }
+            );
             Ok(())
         }
         Command::Send {
@@ -198,15 +253,23 @@ fn cmd_set(
     zone: &str,
     color: &str,
     save: bool,
+    brightness: Option<u8>,
     dry_run: bool,
     common: &Common,
 ) -> Result<(), String> {
     let mask = zones::parse(zone)?;
     let rgb = color::parse(color)?;
+    let rgb = match brightness {
+        Some(b) => color::scale(rgb, b),
+        None => rgb,
+    };
     let packets = apply::set_color_packets(mask, rgb, zones::ALL_ZONES_MASK, save);
     if dry_run {
         println!("zone:   {zone} (mask 0x{mask:04X})");
         println!("color:  #{:02X}{:02X}{:02X}", rgb.0, rgb.1, rgb.2);
+        if let Some(b) = brightness {
+            println!("bright: {b}%");
+        }
         println!("slots:  {}", if save { "write" } else { "skip (--no-save)" });
         println!("packets: {}", packets.len());
         for p in &packets {

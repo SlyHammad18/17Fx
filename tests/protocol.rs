@@ -98,3 +98,23 @@ fn speed_packet() {
         [0x02, 0x0E, 0x00, 0x4B, 0, 0, 0, 0, 0, 0, 0, 0]
     );
 }
+
+#[test]
+fn dim_packets() {
+    assert_eq!(
+        protocol::pkt_dim(protocol::DIM_ENABLE, protocol::DIM_MODE_ALWAYS),
+        [0x02, 0x1C, 0x20, 0x01, 0, 0, 0, 0, 0, 0, 0, 0]
+    );
+    assert_eq!(
+        protocol::pkt_dim(protocol::DIM_DISABLE, protocol::DIM_MODE_ALWAYS),
+        [0x02, 0x1C, 0x40, 0x01, 0, 0, 0, 0, 0, 0, 0, 0]
+    );
+}
+
+#[test]
+fn brightness_scaling() {
+    assert_eq!(color::scale((255, 0, 0), 100), (255, 0, 0));
+    assert_eq!(color::scale((255, 0, 0), 50), (128, 0, 0));
+    assert_eq!(color::scale((255, 128, 0), 50), (128, 64, 0));
+    assert_eq!(color::scale((255, 255, 255), 0), (0, 0, 0));
+}

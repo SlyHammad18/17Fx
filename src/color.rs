@@ -22,6 +22,15 @@ pub fn parse(s: &str) -> Result<(u8, u8, u8), String> {
     }
 }
 
+pub fn scale(rgb: (u8, u8, u8), brightness: u8) -> (u8, u8, u8) {
+    if brightness >= 100 {
+        return rgb;
+    }
+    let f = f64::from(brightness) / 100.0;
+    let ch = |v: u8| (f64::from(v) * f).round() as u8;
+    (ch(rgb.0), ch(rgb.1), ch(rgb.2))
+}
+
 fn named(s: &str) -> Option<(u8, u8, u8)> {
     let c = match s.to_ascii_lowercase().as_str() {
         "black" => (0x00, 0x00, 0x00),

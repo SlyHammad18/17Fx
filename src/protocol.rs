@@ -11,6 +11,12 @@ pub const CMD_RESET: u8 = 0x07;
 pub const CMD_SAVE_NEXT: u8 = 0x08;
 pub const CMD_SAVE: u8 = 0x09;
 pub const CMD_SET_SPEED: u8 = 0x0E;
+pub const CMD_SET_DIM: u8 = 0x1C;
+
+pub const DIM_ENABLE: u8 = 0x20;
+pub const DIM_DISABLE: u8 = 0x40;
+pub const DIM_MODE_ALWAYS: u8 = 0x01;
+pub const DIM_MODE_BATTERY_ONLY: u8 = 0x00;
 
 pub const STATUS_READY: u8 = 0x10;
 pub const STATUS_BUSY: u8 = 0x11;
@@ -128,5 +134,13 @@ pub fn pkt_set_speed(speed: u16) -> [u8; PACKET_LEN] {
     p[1] = CMD_SET_SPEED;
     p[2] = (speed >> 8) as u8;
     p[3] = speed as u8;
+    p
+}
+
+pub fn pkt_dim(option: u8, mode: u8) -> [u8; PACKET_LEN] {
+    let mut p = pkt();
+    p[1] = CMD_SET_DIM;
+    p[2] = option;
+    p[3] = mode;
     p
 }

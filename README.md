@@ -33,6 +33,8 @@ alienfx set <zone> <color>            # one zone, or a comma-separated list
 alienfx set-all <color>               # every region at once
 alienfx off                           # all lights off
 alienfx on                            # all lights on
+alienfx dim [--battery-only]          # firmware dim mode
+alienfx undim                         # leave dim mode
 alienfx send "02 07 03" --dry-run     # raw packets for debugging
 ```
 
@@ -52,6 +54,10 @@ Colors are written to the controller's power-state slots by default, so they
 survive power-state changes and reboots. `--no-save` applies live only and
 leaves the saved slots untouched — note that the power button follows the
 saved slots, so with `--no-save` it can revert to its factory charging morph.
+
+Brightness: `--brightness <0-100>` scales any `set`/`set-all` color
+(e.g. `alienfx set-all red --brightness 30`). `dim`/`undim` toggle the
+controller's own dim mode (`--battery-only` dims only on battery).
 
 Useful flags: `--device /dev/hidrawN` (override auto-detection), `-v/--verbose`
 (packet hex dumps), `send --mode feature`, `send --read-ms N` (listen for
