@@ -37,7 +37,7 @@ alienfx send "02 07 03" --dry-run     # raw packets for debugging
 ```
 
 Colors: `#RRGGBB`, `#RGB`, or a name: black, white, red, green, blue, yellow,
-cyan, magenta, orange, purple, pink, teal, gray, silver, maroon, navy, olive.
+cyan, magenta, orange, purple.
 
 Examples:
 
