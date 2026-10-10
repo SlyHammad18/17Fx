@@ -145,14 +145,18 @@ fn live_block_packets_layout() {
 #[test]
 fn morph_packets_layout() {
     let pkts = apply::set_morph_packets(0x000F, (255, 0, 0), (0, 0, 255), 0x7DEF, false, 75);
-    assert_eq!(pkts.len(), 34);
+    assert_eq!(pkts.len(), 49);
     assert_eq!(
         pkts[1],
         [0x02, 0x01, 0x01, 0x00, 0x00, 0x0F, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF]
     );
+    assert_eq!(
+        pkts[3],
+        [0x02, 0x01, 0x01, 0x00, 0x00, 0x0F, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00]
+    );
     assert_eq!(pkts.last().unwrap()[1], protocol::CMD_TRANSMIT_EXECUTE);
     assert_eq!(
-        pkts[28],
+        pkts[42],
         [0x02, 0x0E, 0x00, 0x4B, 0, 0, 0, 0, 0, 0, 0, 0]
     );
 }

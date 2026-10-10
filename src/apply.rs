@@ -15,6 +15,16 @@ impl Action {
             Action::Morph(a, b) => p::pkt_set_morph_color(block, zone_mask, a, b),
         }
     }
+
+    pub fn packets(self, block: u8, zone_mask: u32) -> Vec<[u8; p::PACKET_LEN]> {
+        match self {
+            Action::Morph(a, b) => vec![
+                p::pkt_set_morph_color(block, zone_mask, a, b),
+                p::pkt_set_morph_color(block, zone_mask, b, a),
+            ],
+            other => vec![other.packet(block, zone_mask)],
+        }
+    }
 }
 
 pub fn no_zone_mask(all_zones: u32) -> u32 {
@@ -34,8 +44,10 @@ pub fn set_action_packets(
 ) -> Vec<[u8; p::PACKET_LEN]> {
     let mut cmds = Vec::new();
     for (_, state) in p::STATES {
-        cmds.push(p::pkt_save_next(*state));
-        cmds.push(action.packet(1, zone_mask));
+        for pkt in action.packets(1, zone_mask) {
+            cmds.push(p::pkt_save_next(*state));
+            cmds.push(pkt);
+        }
         cmds.push(p::pkt_save_next(*state));
         cmds.push(p::pkt_loop_block_end());
         if commit {
@@ -43,7 +55,7 @@ pub fn set_action_packets(
         }
     }
     cmds.push(p::pkt_set_speed(speed));
-    cmds.push(action.packet(1, zone_mask));
+    cmds.extend(action.packets(1, zone_mask));
     cmds.push(p::pkt_loop_block_end());
     cmds.push(p::pkt_set_color(2, no_zone_mask(all_zones), (0, 0, 0)));
     cmds.push(p::pkt_loop_block_end());
@@ -82,13 +94,15 @@ pub fn state_slot_packets(
     zone_mask: u32,
     action: Action,
 ) -> Vec<[u8; p::PACKET_LEN]> {
-    vec![
-        p::pkt_save_next(state),
-        action.packet(1, zone_mask),
-        p::pkt_save_next(state),
-        p::pkt_loop_block_end(),
-        p::pkt_save(),
-    ]
+    let mut cmds = Vec::new();
+    for pkt in action.packets(1, zone_mask) {
+        cmds.push(p::pkt_save_next(state));
+        cmds.push(pkt);
+    }
+    cmds.push(p::pkt_save_next(state));
+    cmds.push(p::pkt_loop_block_end());
+    cmds.push(p::pkt_save());
+    cmds
 }
 
 pub fn live_block_packets(
@@ -96,13 +110,12 @@ pub fn live_block_packets(
     action: Action,
     all_zones: u32,
 ) -> Vec<[u8; p::PACKET_LEN]> {
-    vec![
-        action.packet(1, zone_mask),
-        p::pkt_loop_block_end(),
-        p::pkt_set_color(2, no_zone_mask(all_zones), (0, 0, 0)),
-        p::pkt_loop_block_end(),
-        p::pkt_transmit_execute(),
-    ]
+    let mut cmds: Vec<[u8; p::PACKET_LEN]> = action.packets(1, zone_mask);
+    cmds.push(p::pkt_loop_block_end());
+    cmds.push(p::pkt_set_color(2, no_zone_mask(all_zones), (0, 0, 0)));
+    cmds.push(p::pkt_loop_block_end());
+    cmds.push(p::pkt_transmit_execute());
+    cmds
 }
 
 pub fn reset_packets(kind: u8) -> Vec<[u8; p::PACKET_LEN]> {
