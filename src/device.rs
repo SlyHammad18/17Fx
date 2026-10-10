@@ -142,7 +142,7 @@ impl Hidraw {
                 self.write_packet(pkt)?;
             }
             if i + 1 < packets.len() {
-                std::thread::sleep(Duration::from_millis(12));
+                std::thread::sleep(Duration::from_millis(25));
             }
         }
         Ok(())

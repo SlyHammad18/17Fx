@@ -354,6 +354,13 @@ fn cmd_probe(common: &Common) -> Result<(), String> {
     Ok(())
 }
 
+fn send_preamble(dev: &mut device::Hidraw, common: &Common) -> Result<(), String> {
+    dev.send_all(&apply::apply_preamble(), false, common.verbose)
+        .map_err(|e| e.to_string())?;
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    Ok(())
+}
+
 fn cmd_set(
     zone: &str,
     color: &str,
@@ -383,9 +390,7 @@ fn cmd_set(
         return Ok(());
     }
     let mut dev = open_device(common)?;
-    dev.send_all(&apply::apply_preamble(), false, common.verbose)
-        .map_err(|e| e.to_string())?;
-    std::thread::sleep(std::time::Duration::from_millis(120));
+    send_preamble(&mut dev, common)?;
     dev.send_all(&packets, false, common.verbose)
         .map_err(|e| e.to_string())?;
     if let Err(e) = profile::record(mask, rgb) {
@@ -484,9 +489,7 @@ fn cmd_apply(name: &str, common: &Common) -> Result<(), String> {
         return Err(format!("profile {name:?} is empty"));
     }
     let mut dev = open_device(common)?;
-    dev.send_all(&apply::apply_preamble(), false, common.verbose)
-        .map_err(|e| e.to_string())?;
-    std::thread::sleep(std::time::Duration::from_millis(120));
+    send_preamble(&mut dev, common)?;
     for (mask, rgb) in &entries {
         dev.send_all(
             &apply::set_color_packets(*mask, *rgb, zones::ALL_ZONES_MASK, true),
@@ -539,9 +542,7 @@ fn cmd_effect(
         return Ok(());
     }
     let mut dev = open_device(common)?;
-    dev.send_all(&apply::apply_preamble(), false, common.verbose)
-        .map_err(|e| e.to_string())?;
-    std::thread::sleep(std::time::Duration::from_millis(120));
+    send_preamble(&mut dev, common)?;
     dev.send_all(&packets, false, common.verbose)
         .map_err(|e| e.to_string())?;
     println!(
@@ -614,9 +615,7 @@ fn cmd_power(
         return Ok(());
     }
     let mut dev = open_device(common)?;
-    dev.send_all(&apply::apply_preamble(), false, common.verbose)
-        .map_err(|e| e.to_string())?;
-    std::thread::sleep(std::time::Duration::from_millis(120));
+    send_preamble(&mut dev, common)?;
     entries.sort_by_key(|(code, _)| (*code == protocol::STATE_BAT_CRIT) as u8);
     for (code, action) in &entries {
         dev.send_all(
