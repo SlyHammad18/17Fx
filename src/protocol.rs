@@ -28,6 +28,14 @@ pub const DEFAULT_SPEED: u16 = 75;
 pub const TEMPO_MIN: u16 = 0x001E;
 pub const TEMPO_MAX: u16 = 0x03AE;
 
+pub const STATE_BOOT: u8 = 1;
+pub const STATE_AC_SLEEP: u8 = 2;
+pub const STATE_AC_CHARGED: u8 = 5;
+pub const STATE_AC_CHARGING: u8 = 6;
+pub const STATE_BAT_SLEEP: u8 = 7;
+pub const STATE_BAT_ON: u8 = 8;
+pub const STATE_BAT_CRIT: u8 = 9;
+
 pub const STATES: &[(&str, u8)] = &[
     ("boot", 1),
     ("ac-sleep", 2),

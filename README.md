@@ -31,6 +31,7 @@ alienfx zones                         # all 14 lighting regions
 alienfx probe                         # device info + controller status
 alienfx set <zone> <color>            # one zone, or a comma-separated list
 alienfx set-all <color>               # every region at once
+alienfx morph <zone> <c1> <c2>        # loop a color transition between two colors
 alienfx off                           # all lights off
 alienfx on                            # all lights on
 alienfx dim [--battery-only]          # firmware dim mode
@@ -89,16 +90,21 @@ them automatically:
 alienfx power --charging green --charged white --battery orange --low red
 ```
 
-- `--charging` — AC plugged in, battery charging
+- `--charging` — AC plugged in, battery charging. Accepts one color (static)
+  or two comma-separated colors for a morph: `--charging red,blue`
 - `--charged` — AC plugged in, battery full
-- `--battery` — running on battery
-- `--low` — battery critical; this one **blinks**
+- `--battery` — running on battery (also accepts two colors for a morph)
+- `--low` — battery critical (single color; the firmware's own low-battery
+  indicator blinks it when the battery is genuinely critical)
 
 Defaults to the power button; `--zone` targets other zones. Only the states
-you pass are touched. The color for the state the machine is currently in is
-applied immediately; the rest switch automatically when the power state
-changes. Note that a later `set`/`set-all` on the same zone overwrites these
-slots — run `power` again afterwards if needed.
+you pass are touched. The current state's slot is re-committed and live-applied
+so changes show immediately; the rest switch automatically when the power
+state changes. Note that a later `set`/`set-all` on the same zone overwrites
+these slots — run `power` again afterwards if needed.
+
+`morph` loops a smooth transition between two colors on any zone
+(`--speed <30-942>` sets the tempo, lower = faster, default 75).
 
 Useful flags: `--device /dev/hidrawN` (override auto-detection), `-v/--verbose`
 (packet hex dumps), `send --mode feature`, `send --read-ms N` (listen for

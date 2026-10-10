@@ -12,8 +12,9 @@
 - `dim` / `undim` — controller dim mode (CMD 0x1C, `--battery-only` supported)
 - Configuration profiles — every set updates `~/.config/alienfx/state`;
   `save [name]`, `apply [name]`, `profiles` snapshot and restore configs
-- `power` — per-power-state colors (charging / charged / battery / low-battery
-  blink) written to the controller's state slots
+- `power` — per-power-state colors (charging / charged / battery / low-battery),
+  including morphs per state (`--charging red,blue`)
+- `morph <zone> <c1> <c2> [--speed n]` — looping color transition on any zone
 - `send <hex>` — raw packet debugging (output/feature, `--dry-run`, `--read-ms`)
 - Session persistence: colors survive sleep, power-state changes and reboots
   (power-state slots are committed by default; `--no-save` opts out)
@@ -23,8 +24,6 @@
 - Touchpad lighting mode control — explore Dell BIOS tokens via libsmbios
   (`smbios-token-ctl`) for an "on touch / always on" switch from Linux;
   the AlienFX wire protocol itself has no command for it
-- `blink <zone> <color>` — pulse effect (CMD 0x02 `SET_BLINK_COLOR`)
-- `morph <zone> <color1> <color2>` — two-color morph (CMD 0x01 `SET_MORPH_COLOR`)
 - `speed <n>` — blink/morph tempo (CMD 0x0E, range 0x1E–0x3AE, lower = faster)
 - More power states in `power` — boot, ac-sleep, bat-sleep colors
   (CMD 0x08 slots, state table in `src/protocol.rs::STATES`)

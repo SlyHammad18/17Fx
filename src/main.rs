@@ -63,6 +63,19 @@ enum Command {
         #[command(flatten)]
         common: Common,
     },
+    Morph {
+        zone: String,
+        color1: String,
+        color2: String,
+        #[arg(long, value_parser = clap::value_parser!(u16).range(30..=942), help = "Morph tempo, lower = faster (default 75)")]
+        speed: Option<u16>,
+        #[arg(long = "no-save")]
+        no_save: bool,
+        #[arg(long)]
+        dry_run: bool,
+        #[command(flatten)]
+        common: Common,
+    },
     Off {
         #[command(flatten)]
         common: Common,
@@ -93,7 +106,7 @@ enum Command {
         charged: Option<String>,
         #[arg(long, value_name = "COLOR", help = "Color while on battery")]
         battery: Option<String>,
-        #[arg(long, value_name = "COLOR", help = "Blinking color when battery is critical")]
+        #[arg(long, value_name = "COLOR", help = "Color when the battery is critical (firmware blinks it itself)")]
         low: Option<String>,
         #[arg(long, default_value = "power-button")]
         zone: String,
@@ -152,6 +165,23 @@ fn run(cmd: Command) -> Result<(), String> {
             dry_run,
             common,
         } => cmd_set("all", &color, !no_save, brightness, dry_run, &common),
+        Command::Morph {
+            zone,
+            color1,
+            color2,
+            speed,
+            no_save,
+            dry_run,
+            common,
+        } => cmd_morph(
+            &zone,
+            &color1,
+            &color2,
+            speed,
+            !no_save,
+            dry_run,
+            &common,
+        ),
         Command::Off { common } => {
             let mut dev = open_device(&common)?;
             dev.send_all(
@@ -457,6 +487,74 @@ fn cmd_profiles() -> Result<(), String> {
     Ok(())
 }
 
+fn cmd_morph(
+    zone: &str,
+    color1: &str,
+    color2: &str,
+    speed: Option<u16>,
+    save: bool,
+    dry_run: bool,
+    common: &Common,
+) -> Result<(), String> {
+    let mask = zones::parse(zone)?;
+    let a = color::parse(color1)?;
+    let b = color::parse(color2)?;
+    let speed = speed.unwrap_or(protocol::DEFAULT_SPEED);
+    let packets = apply::set_morph_packets(mask, a, b, zones::ALL_ZONES_MASK, save, speed);
+    if dry_run {
+        println!("zone:   {zone} (mask 0x{mask:04X})");
+        println!("morph:  #{:02X}{:02X}{:02X} <-> #{:02X}{:02X}{:02X}", a.0, a.1, a.2, b.0, b.1, b.2);
+        println!("speed:  {speed}");
+        println!("slots:  {}", if save { "write" } else { "skip (--no-save)" });
+        println!("packets: {}", packets.len());
+        for p in &packets {
+            println!("{:02x?}", p);
+        }
+        return Ok(());
+    }
+    let mut dev = open_device(common)?;
+    dev.send_all(&apply::apply_preamble(), false, common.verbose)
+        .map_err(|e| e.to_string())?;
+    std::thread::sleep(std::time::Duration::from_millis(120));
+    dev.send_all(&packets, false, common.verbose)
+        .map_err(|e| e.to_string())?;
+    println!(
+        "{} -> morph #{:02X}{:02X}{:02X} <-> #{:02X}{:02X}{:02X} (speed {speed}){}",
+        zone,
+        a.0,
+        a.1,
+        a.2,
+        b.0,
+        b.1,
+        b.2,
+        if save { " (slots updated)" } else { " (live only)" }
+    );
+    Ok(())
+}
+
+fn parse_action(s: &str) -> Result<apply::Action, String> {
+    let parts: Vec<&str> = s.split(',').map(str::trim).collect();
+    match parts.as_slice() {
+        [one] => Ok(apply::Action::Static(color::parse(one)?)),
+        [a, b] => Ok(apply::Action::Morph(
+            color::parse(a)?,
+            color::parse(b)?,
+        )),
+        _ => Err(format!(
+            "invalid color spec {s:?}; use COLOR, or COLOR1,COLOR2 for a morph"
+        )),
+    }
+}
+
+fn describe(action: &apply::Action) -> String {
+    let hex = |c: (u8, u8, u8)| format!("#{:02X}{:02X}{:02X}", c.0, c.1, c.2);
+    match action {
+        apply::Action::Static(c) => hex(*c),
+        apply::Action::Blink(c) => format!("blink {}", hex(*c)),
+        apply::Action::Morph(a, b) => format!("morph {} <-> {}", hex(*a), hex(*b)),
+    }
+}
+
 fn cmd_power(
     charging: Option<&str>,
     charged: Option<&str>,
@@ -466,35 +564,31 @@ fn cmd_power(
     dry_run: bool,
     common: &Common,
 ) -> Result<(), String> {
-    let mut states: Vec<(u8, (u8, u8, u8), bool)> = Vec::new();
-    for (name, val, blink) in [
-        ("ac-charging", charging, false),
-        ("ac-charged", charged, false),
-        ("bat-on", battery, false),
-        ("bat-crit", low, true),
+    let mut entries: Vec<(u8, apply::Action)> = Vec::new();
+    for (name, val) in [
+        ("ac-charging", charging),
+        ("ac-charged", charged),
+        ("bat-on", battery),
+        ("bat-crit", low),
     ] {
-        if let Some(c) = val {
-            let code = protocol::state_code(name)
-                .ok_or_else(|| format!("unknown power state {name:?}"))?;
-            states.push((code, color::parse(c)?, blink));
+        if let Some(s) = val {
+            let code =
+                protocol::state_code(name).ok_or_else(|| format!("unknown power state {name:?}"))?;
+            let action = parse_action(s)?;
+            if name == "bat-crit" && matches!(action, apply::Action::Morph(_, _)) {
+                return Err("--low takes a single color (it is shown when the battery is critical)".into());
+            }
+            entries.push((code, action));
         }
     }
-    if states.is_empty() {
+    if entries.is_empty() {
         return Err("nothing to do; pass --charging, --charged, --battery and/or --low".into());
     }
     let mask = zones::parse(zone)?;
     if dry_run {
         println!("zone: {zone} (mask 0x{mask:04X})");
-        for (code, rgb, blink) in &states {
-            let effect = if *blink { " blink" } else { "" };
-            println!(
-                "{:<12} #{:02X}{:02X}{:02X}{}",
-                protocol::state_name(*code),
-                rgb.0,
-                rgb.1,
-                rgb.2,
-                effect
-            );
+        for (code, action) in &entries {
+            println!("{:<12} {}", protocol::state_name(*code), describe(action));
         }
         return Ok(());
     }
@@ -502,9 +596,10 @@ fn cmd_power(
     dev.send_all(&apply::apply_preamble(), false, common.verbose)
         .map_err(|e| e.to_string())?;
     std::thread::sleep(std::time::Duration::from_millis(120));
-    for (code, rgb, blink) in &states {
+    entries.sort_by_key(|(code, _)| (*code == protocol::STATE_BAT_CRIT) as u8);
+    for (code, action) in &entries {
         dev.send_all(
-            &apply::state_slot_packets(*code, mask, *rgb, *blink),
+            &apply::state_slot_packets(*code, mask, *action),
             false,
             common.verbose,
         )
@@ -516,30 +611,30 @@ fn cmd_power(
         common.verbose,
     )
     .map_err(|e| e.to_string())?;
-    let mut live_applied = false;
+    let mut live = None;
     if let Some(cur) = power::current_state() {
-        if let Some((_, rgb, blink)) = states.iter().find(|(c, _, _)| *c == cur) {
+        if let Some((_, action)) = entries.iter().find(|(c, _)| *c == cur) {
             dev.send_all(
-                &apply::live_block_packets(mask, *rgb, zones::ALL_ZONES_MASK, *blink),
+                &apply::state_slot_packets(cur, mask, *action),
                 false,
                 common.verbose,
             )
             .map_err(|e| e.to_string())?;
-            live_applied = true;
+            live = Some(*action);
         }
     }
-    for (code, rgb, blink) in &states {
-        let effect = if *blink { " (blink)" } else { "" };
-        println!(
-            "{:<12} -> #{:02X}{:02X}{:02X}{}",
-            protocol::state_name(*code),
-            rgb.0,
-            rgb.1,
-            rgb.2,
-            effect
-        );
+    if let Some(action) = live {
+        dev.send_all(
+            &apply::live_block_packets(mask, action, zones::ALL_ZONES_MASK),
+            false,
+            common.verbose,
+        )
+        .map_err(|e| e.to_string())?;
     }
-    if !live_applied {
+    for (code, action) in &entries {
+        println!("{:<12} -> {}", protocol::state_name(*code), describe(action));
+    }
+    if live.is_none() {
         println!("note: current power state not configured; colors take effect on the next state change");
     }
     Ok(())
