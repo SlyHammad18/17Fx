@@ -35,6 +35,9 @@ alienfx off                           # all lights off
 alienfx on                            # all lights on
 alienfx dim [--battery-only]          # firmware dim mode
 alienfx undim                         # leave dim mode
+alienfx save [name]                   # snapshot current config as a profile
+alienfx apply [name]                  # restore a saved profile
+alienfx profiles                      # list saved profiles
 alienfx send "02 07 03" --dry-run     # raw packets for debugging
 ```
 
@@ -58,6 +61,22 @@ saved slots, so with `--no-save` it can revert to its factory charging morph.
 Brightness: `--brightness <0-100>` scales any `set`/`set-all` color
 (e.g. `alienfx set-all red --brightness 30`). `dim`/`undim` toggle the
 controller's own dim mode (`--battery-only` dims only on battery).
+
+## Saving configurations
+
+Every `set`/`set-all` updates `~/.config/alienfx/state` with the current
+zone-to-color configuration. Snapshot it under a name and restore later:
+
+```
+alienfx save gaming
+alienfx profiles
+alienfx apply gaming
+alienfx apply              # "default" profile
+```
+
+Profiles are plain text files (`mask-hex RRGGBB-hex` per line) under
+`~/.config/alienfx/profiles/`, so you can edit them by hand. `off`/`on` do
+not touch the tracked state — `apply` restores your configuration after.
 
 Useful flags: `--device /dev/hidrawN` (override auto-detection), `-v/--verbose`
 (packet hex dumps), `send --mode feature`, `send --read-ms N` (listen for

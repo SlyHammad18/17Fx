@@ -4,7 +4,7 @@ use std::process::exit;
 
 use clap::{Parser, Subcommand};
 
-use alienfx::{apply, color, device, protocol, zones};
+use alienfx::{apply, color, device, profile, protocol, zones};
 
 const SIGPIPE: c_int = 13;
 const SIG_DFL: usize = 0;
@@ -75,6 +75,17 @@ enum Command {
         #[command(flatten)]
         common: Common,
     },
+    Save {
+        #[arg(default_value = "default", help = "Profile name")]
+        name: String,
+    },
+    Apply {
+        #[arg(default_value = "default", help = "Profile name")]
+        name: String,
+        #[command(flatten)]
+        common: Common,
+    },
+    Profiles,
     Dim {
         #[arg(long, help = "Dim only while on battery power")]
         battery_only: bool,
@@ -161,6 +172,9 @@ fn run(cmd: Command) -> Result<(), String> {
             println!("dim disabled");
             Ok(())
         }
+        Command::Save { name } => cmd_save(&name),
+        Command::Apply { name, common } => cmd_apply(&name, &common),
+        Command::Profiles => cmd_profiles(),
         Command::Dim {
             battery_only,
             common,
@@ -283,6 +297,9 @@ fn cmd_set(
     std::thread::sleep(std::time::Duration::from_millis(120));
     dev.send_all(&packets, false, common.verbose)
         .map_err(|e| e.to_string())?;
+    if let Err(e) = profile::record(mask, rgb) {
+        eprintln!("warning: could not update state file: {e}");
+    }
     println!(
         "{} -> #{:02X}{:02X}{:02X}{}",
         zone,
@@ -347,6 +364,62 @@ fn cmd_send(
                 println!("RX {:02x?}", f);
             }
         }
+    }
+    Ok(())
+}
+
+fn cmd_save(name: &str) -> Result<(), String> {
+    profile::validate_name(name)?;
+    let entries = profile::load(&profile::state_path())
+        .map_err(|_| "no tracked configuration yet; set some colors first".to_string())?;
+    if entries.is_empty() {
+        return Err("no tracked configuration yet; set some colors first".into());
+    }
+    let path = profile::profiles_dir().join(name);
+    profile::write(&path, &entries).map_err(|e| e.to_string())?;
+    println!(
+        "{name}: {} zone group(s) saved to {}",
+        entries.len(),
+        path.display()
+    );
+    Ok(())
+}
+
+fn cmd_apply(name: &str, common: &Common) -> Result<(), String> {
+    profile::validate_name(name)?;
+    let entries = profile::load(&profile::profiles_dir().join(name))
+        .map_err(|_| format!("profile {name:?} not found; run `alienfx profiles`"))?;
+    if entries.is_empty() {
+        return Err(format!("profile {name:?} is empty"));
+    }
+    let mut dev = open_device(common)?;
+    dev.send_all(&apply::apply_preamble(), false, common.verbose)
+        .map_err(|e| e.to_string())?;
+    std::thread::sleep(std::time::Duration::from_millis(120));
+    for (mask, rgb) in &entries {
+        dev.send_all(
+            &apply::set_color_packets(*mask, *rgb, zones::ALL_ZONES_MASK, true),
+            false,
+            common.verbose,
+        )
+        .map_err(|e| e.to_string())?;
+        println!("{mask:04X} -> #{:02X}{:02X}{:02X}", rgb.0, rgb.1, rgb.2);
+    }
+    println!("{name}: applied {} group(s)", entries.len());
+    Ok(())
+}
+
+fn cmd_profiles() -> Result<(), String> {
+    let names = profile::list_profiles().map_err(|e| e.to_string())?;
+    if names.is_empty() {
+        println!("no saved profiles");
+        return Ok(());
+    }
+    for n in names {
+        let count = profile::load(&profile::profiles_dir().join(&n))
+            .map(|e| e.len())
+            .unwrap_or(0);
+        println!("{n} ({count} group(s))");
     }
     Ok(())
 }

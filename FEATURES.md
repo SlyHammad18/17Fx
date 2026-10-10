@@ -4,10 +4,14 @@
 
 - `list` — find the AlienFX controller (USB 187c:0530) and check permissions
 - `zones` — all 14 lighting regions with masks
-- `probe` — device identity + controller status
+- `probe` — device identity
 - `set <zone|all> <color>` — static color, single zone or comma-separated list
 - `set-all <color>` — every region at once
 - `off` / `on`
+- `--brightness <0-100>` — scale any set/set-all color
+- `dim` / `undim` — controller dim mode (CMD 0x1C, `--battery-only` supported)
+- Configuration profiles — every set updates `~/.config/alienfx/state`;
+  `save [name]`, `apply [name]`, `profiles` snapshot and restore configs
 - `send <hex>` — raw packet debugging (output/feature, `--dry-run`, `--read-ms`)
 - Session persistence: colors survive sleep, power-state changes and reboots
   (power-state slots are committed by default; `--no-save` opts out)
@@ -23,7 +27,6 @@
 - Per-power-state colors — distinct colors for boot, ac-sleep, ac-charged,
   ac-charging, bat-sleep, bat-on, bat-crit (CMD 0x08 slots, state table in
   `src/protocol.rs::STATES`)
-- Theme save/load — JSON/TOML files mapping zones to colors, `apply <theme>`
 - Config file — default color, default device, NVRAM-commit on/off
   (`~/.config/alienfx/config.toml`)
 - Effect daemon — breathing, color wave across zones, ripple-on-keypress
