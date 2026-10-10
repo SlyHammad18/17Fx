@@ -4,7 +4,7 @@ use std::process::exit;
 
 use clap::{Parser, Subcommand};
 
-use alienfx::{apply, color, device, profile, protocol, zones};
+use alienfx::{apply, color, device, power, profile, protocol, zones};
 
 const SIGPIPE: c_int = 13;
 const SIG_DFL: usize = 0;
@@ -86,6 +86,22 @@ enum Command {
         common: Common,
     },
     Profiles,
+    Power {
+        #[arg(long, value_name = "COLOR", help = "Color while charging (AC plugged in)")]
+        charging: Option<String>,
+        #[arg(long, value_name = "COLOR", help = "Color when charged (AC, battery full)")]
+        charged: Option<String>,
+        #[arg(long, value_name = "COLOR", help = "Color while on battery")]
+        battery: Option<String>,
+        #[arg(long, value_name = "COLOR", help = "Blinking color when battery is critical")]
+        low: Option<String>,
+        #[arg(long, default_value = "power-button")]
+        zone: String,
+        #[arg(long)]
+        dry_run: bool,
+        #[command(flatten)]
+        common: Common,
+    },
     Dim {
         #[arg(long, help = "Dim only while on battery power")]
         battery_only: bool,
@@ -175,6 +191,23 @@ fn run(cmd: Command) -> Result<(), String> {
         Command::Save { name } => cmd_save(&name),
         Command::Apply { name, common } => cmd_apply(&name, &common),
         Command::Profiles => cmd_profiles(),
+        Command::Power {
+            charging,
+            charged,
+            battery,
+            low,
+            zone,
+            dry_run,
+            common,
+        } => cmd_power(
+            charging.as_deref(),
+            charged.as_deref(),
+            battery.as_deref(),
+            low.as_deref(),
+            &zone,
+            dry_run,
+            &common,
+        ),
         Command::Dim {
             battery_only,
             common,
@@ -420,6 +453,94 @@ fn cmd_profiles() -> Result<(), String> {
             .map(|e| e.len())
             .unwrap_or(0);
         println!("{n} ({count} group(s))");
+    }
+    Ok(())
+}
+
+fn cmd_power(
+    charging: Option<&str>,
+    charged: Option<&str>,
+    battery: Option<&str>,
+    low: Option<&str>,
+    zone: &str,
+    dry_run: bool,
+    common: &Common,
+) -> Result<(), String> {
+    let mut states: Vec<(u8, (u8, u8, u8), bool)> = Vec::new();
+    for (name, val, blink) in [
+        ("ac-charging", charging, false),
+        ("ac-charged", charged, false),
+        ("bat-on", battery, false),
+        ("bat-crit", low, true),
+    ] {
+        if let Some(c) = val {
+            let code = protocol::state_code(name)
+                .ok_or_else(|| format!("unknown power state {name:?}"))?;
+            states.push((code, color::parse(c)?, blink));
+        }
+    }
+    if states.is_empty() {
+        return Err("nothing to do; pass --charging, --charged, --battery and/or --low".into());
+    }
+    let mask = zones::parse(zone)?;
+    if dry_run {
+        println!("zone: {zone} (mask 0x{mask:04X})");
+        for (code, rgb, blink) in &states {
+            let effect = if *blink { " blink" } else { "" };
+            println!(
+                "{:<12} #{:02X}{:02X}{:02X}{}",
+                protocol::state_name(*code),
+                rgb.0,
+                rgb.1,
+                rgb.2,
+                effect
+            );
+        }
+        return Ok(());
+    }
+    let mut dev = open_device(common)?;
+    dev.send_all(&apply::apply_preamble(), false, common.verbose)
+        .map_err(|e| e.to_string())?;
+    std::thread::sleep(std::time::Duration::from_millis(120));
+    for (code, rgb, blink) in &states {
+        dev.send_all(
+            &apply::state_slot_packets(*code, mask, *rgb, *blink),
+            false,
+            common.verbose,
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    dev.send_all(
+        &[protocol::pkt_set_speed(protocol::DEFAULT_SPEED)],
+        false,
+        common.verbose,
+    )
+    .map_err(|e| e.to_string())?;
+    let mut live_applied = false;
+    if let Some(cur) = power::current_state() {
+        if let Some((_, rgb, blink)) = states.iter().find(|(c, _, _)| *c == cur) {
+            dev.send_all(
+                &apply::live_block_packets(mask, *rgb, zones::ALL_ZONES_MASK, *blink),
+                false,
+                common.verbose,
+            )
+            .map_err(|e| e.to_string())?;
+            live_applied = true;
+        }
+    }
+    for (code, rgb, blink) in &states {
+        let effect = if *blink { " (blink)" } else { "" };
+        println!(
+            "{:<12} -> #{:02X}{:02X}{:02X}{}",
+            protocol::state_name(*code),
+            rgb.0,
+            rgb.1,
+            rgb.2,
+            effect
+        );
+    }
+    if !live_applied {
+        println!("note: current power state not configured; colors take effect on the next state change");
     }
     Ok(())
 }

@@ -36,6 +36,46 @@ pub fn set_color_packets(
     cmds
 }
 
+pub fn state_slot_packets(
+    state: u8,
+    zone_mask: u32,
+    rgb: (u8, u8, u8),
+    blink: bool,
+) -> Vec<[u8; p::PACKET_LEN]> {
+    let color_pkt = if blink {
+        p::pkt_set_blink_color(1, zone_mask, rgb)
+    } else {
+        p::pkt_set_color(1, zone_mask, rgb)
+    };
+    vec![
+        p::pkt_save_next(state),
+        color_pkt,
+        p::pkt_save_next(state),
+        p::pkt_loop_block_end(),
+        p::pkt_save(),
+    ]
+}
+
+pub fn live_block_packets(
+    zone_mask: u32,
+    rgb: (u8, u8, u8),
+    all_zones: u32,
+    blink: bool,
+) -> Vec<[u8; p::PACKET_LEN]> {
+    let color_pkt = if blink {
+        p::pkt_set_blink_color(1, zone_mask, rgb)
+    } else {
+        p::pkt_set_color(1, zone_mask, rgb)
+    };
+    vec![
+        color_pkt,
+        p::pkt_loop_block_end(),
+        p::pkt_set_color(2, no_zone_mask(all_zones), (0, 0, 0)),
+        p::pkt_loop_block_end(),
+        p::pkt_transmit_execute(),
+    ]
+}
+
 pub fn reset_packets(kind: u8) -> Vec<[u8; p::PACKET_LEN]> {
     vec![p::pkt_reset(kind), p::pkt_transmit_execute()]
 }

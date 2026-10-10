@@ -118,3 +118,35 @@ fn brightness_scaling() {
     assert_eq!(color::scale((255, 128, 0), 50), (128, 64, 0));
     assert_eq!(color::scale((255, 255, 255), 0), (0, 0, 0));
 }
+
+#[test]
+fn state_slot_packets_layout() {
+    let pkts = apply::state_slot_packets(6, 0x0100, (0, 255, 0), false);
+    assert_eq!(pkts.len(), 5);
+    assert_eq!(pkts[0], [0x02, 0x08, 0x06, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(
+        pkts[1],
+        [0x02, 0x03, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0x00, 0, 0, 0]
+    );
+    assert_eq!(pkts[4], [0x02, 0x09, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    let blink = apply::state_slot_packets(9, 0x0100, (255, 0, 0), true);
+    assert_eq!(blink[1][1], protocol::CMD_SET_BLINK_COLOR);
+}
+
+#[test]
+fn live_block_packets_layout() {
+    let pkts = apply::live_block_packets(0x0100, (255, 0, 0), 0x7DEF, false);
+    assert_eq!(pkts.len(), 5);
+    assert_eq!(pkts[0][1], protocol::CMD_SET_COLOR);
+    assert_eq!(pkts.last().unwrap()[1], protocol::CMD_TRANSMIT_EXECUTE);
+    assert_eq!(pkts[2], [0x02, 0x03, 0x02, 0xFF, 0x82, 0x10, 0, 0, 0, 0, 0, 0]);
+}
+
+#[test]
+fn state_code_lookup() {
+    assert_eq!(protocol::state_code("ac-charging"), Some(6));
+    assert_eq!(protocol::state_code("bat-crit"), Some(9));
+    assert_eq!(protocol::state_code("nope"), None);
+    assert_eq!(protocol::state_name(6), "ac-charging");
+    assert_eq!(protocol::state_name(200), "unknown");
+}

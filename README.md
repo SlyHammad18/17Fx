@@ -38,6 +38,7 @@ alienfx undim                         # leave dim mode
 alienfx save [name]                   # snapshot current config as a profile
 alienfx apply [name]                  # restore a saved profile
 alienfx profiles                      # list saved profiles
+alienfx power --charging green --charged white --battery orange --low red
 alienfx send "02 07 03" --dry-run     # raw packets for debugging
 ```
 
@@ -77,6 +78,27 @@ alienfx apply              # "default" profile
 Profiles are plain text files (`mask-hex RRGGBB-hex` per line) under
 `~/.config/alienfx/profiles/`, so you can edit them by hand. `off`/`on` do
 not touch the tracked state — `apply` restores your configuration after.
+
+## Power-state colors
+
+`power` gives a zone different colors depending on the machine's power
+state, written into the controller's state slots so the firmware switches
+them automatically:
+
+```
+alienfx power --charging green --charged white --battery orange --low red
+```
+
+- `--charging` — AC plugged in, battery charging
+- `--charged` — AC plugged in, battery full
+- `--battery` — running on battery
+- `--low` — battery critical; this one **blinks**
+
+Defaults to the power button; `--zone` targets other zones. Only the states
+you pass are touched. The color for the state the machine is currently in is
+applied immediately; the rest switch automatically when the power state
+changes. Note that a later `set`/`set-all` on the same zone overwrites these
+slots — run `power` again afterwards if needed.
 
 Useful flags: `--device /dev/hidrawN` (override auto-detection), `-v/--verbose`
 (packet hex dumps), `send --mode feature`, `send --read-ms N` (listen for

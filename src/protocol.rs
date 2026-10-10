@@ -38,6 +38,21 @@ pub const STATES: &[(&str, u8)] = &[
     ("bat-crit", 9),
 ];
 
+pub fn state_code(name: &str) -> Option<u8> {
+    STATES
+        .iter()
+        .find(|(n, _)| *n == name)
+        .map(|(_, c)| *c)
+}
+
+pub fn state_name(code: u8) -> &'static str {
+    STATES
+        .iter()
+        .find(|(_, c)| *c == code)
+        .map(|(n, _)| *n)
+        .unwrap_or("unknown")
+}
+
 fn pkt() -> [u8; PACKET_LEN] {
     let mut p = [0u8; PACKET_LEN];
     p[0] = REPORT_ID;
