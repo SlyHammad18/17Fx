@@ -15,6 +15,7 @@
 - `power` — per-power-state colors (charging / charged / battery / low-battery),
   including morphs per state (`--charging red,blue`)
 - `morph <zone> <c1> <c2> [--speed n]` — looping color transition on any zone
+- `blink <zone> <color> [--speed n]` — pulse a zone between a color and off
 - `send <hex>` — raw packet debugging (output/feature, `--dry-run`, `--read-ms`)
 - Session persistence: colors survive sleep, power-state changes and reboots
   (power-state slots are committed by default; `--no-save` opts out)
@@ -24,7 +25,7 @@
 - Touchpad lighting mode control — explore Dell BIOS tokens via libsmbios
   (`smbios-token-ctl`) for an "on touch / always on" switch from Linux;
   the AlienFX wire protocol itself has no command for it
-- `speed <n>` — blink/morph tempo (CMD 0x0E, range 0x1E–0x3AE, lower = faster)
+- `speed <n>` — standalone tempo command (CMD 0x0E, range 0x1E–0x3AE, lower = faster)
 - More power states in `power` — boot, ac-sleep, bat-sleep colors
   (CMD 0x08 slots, state table in `src/protocol.rs::STATES`)
 - Config file — default color, default device, NVRAM-commit on/off

@@ -32,6 +32,7 @@ alienfx probe                         # device info + controller status
 alienfx set <zone> <color>            # one zone, or a comma-separated list
 alienfx set-all <color>               # every region at once
 alienfx morph <zone> <c1> <c2>        # loop a color transition between two colors
+alienfx blink <zone> <color>          # pulse a zone between the color and off
 alienfx off                           # all lights off
 alienfx on                            # all lights on
 alienfx dim [--battery-only]          # firmware dim mode
@@ -104,7 +105,8 @@ state changes. Note that a later `set`/`set-all` on the same zone overwrites
 these slots — run `power` again afterwards if needed.
 
 `morph` loops a smooth transition between two colors on any zone
-(`--speed <30-942>` sets the tempo, lower = faster, default 75).
+(`--speed <30-942>` sets the tempo, lower = faster, default 75). `blink`
+pulses a zone between a color and off with the same `--speed` control.
 
 Useful flags: `--device /dev/hidrawN` (override auto-detection), `-v/--verbose`
 (packet hex dumps), `send --mode feature`, `send --read-ms N` (listen for

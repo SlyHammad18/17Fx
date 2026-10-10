@@ -76,6 +76,18 @@ enum Command {
         #[command(flatten)]
         common: Common,
     },
+    Blink {
+        zone: String,
+        color: String,
+        #[arg(long, value_parser = clap::value_parser!(u16).range(30..=942), help = "Blink tempo, lower = faster (default 75)")]
+        speed: Option<u16>,
+        #[arg(long = "no-save")]
+        no_save: bool,
+        #[arg(long)]
+        dry_run: bool,
+        #[command(flatten)]
+        common: Common,
+    },
     Off {
         #[command(flatten)]
         common: Common,
@@ -173,14 +185,30 @@ fn run(cmd: Command) -> Result<(), String> {
             no_save,
             dry_run,
             common,
-        } => cmd_morph(
+        } => cmd_effect(
             &zone,
-            &color1,
-            &color2,
+            &apply::Action::Morph(color::parse(&color1)?, color::parse(&color2)?),
             speed,
             !no_save,
             dry_run,
             &common,
+            "morph",
+        ),
+        Command::Blink {
+            zone,
+            color,
+            speed,
+            no_save,
+            dry_run,
+            common,
+        } => cmd_effect(
+            &zone,
+            &apply::Action::Blink(color::parse(&color)?),
+            speed,
+            !no_save,
+            dry_run,
+            &common,
+            "blink",
         ),
         Command::Off { common } => {
             let mut dev = open_device(&common)?;
@@ -487,23 +515,21 @@ fn cmd_profiles() -> Result<(), String> {
     Ok(())
 }
 
-fn cmd_morph(
+fn cmd_effect(
     zone: &str,
-    color1: &str,
-    color2: &str,
+    action: &apply::Action,
     speed: Option<u16>,
     save: bool,
     dry_run: bool,
     common: &Common,
+    label: &str,
 ) -> Result<(), String> {
     let mask = zones::parse(zone)?;
-    let a = color::parse(color1)?;
-    let b = color::parse(color2)?;
     let speed = speed.unwrap_or(protocol::DEFAULT_SPEED);
-    let packets = apply::set_morph_packets(mask, a, b, zones::ALL_ZONES_MASK, save, speed);
+    let packets = apply::set_action_packets(mask, *action, zones::ALL_ZONES_MASK, save, speed);
     if dry_run {
         println!("zone:   {zone} (mask 0x{mask:04X})");
-        println!("morph:  #{:02X}{:02X}{:02X} <-> #{:02X}{:02X}{:02X}", a.0, a.1, a.2, b.0, b.1, b.2);
+        println!("{label}:  {}", describe(action));
         println!("speed:  {speed}");
         println!("slots:  {}", if save { "write" } else { "skip (--no-save)" });
         println!("packets: {}", packets.len());
@@ -519,14 +545,9 @@ fn cmd_morph(
     dev.send_all(&packets, false, common.verbose)
         .map_err(|e| e.to_string())?;
     println!(
-        "{} -> morph #{:02X}{:02X}{:02X} <-> #{:02X}{:02X}{:02X} (speed {speed}){}",
+        "{} -> {} (speed {speed}){}",
         zone,
-        a.0,
-        a.1,
-        a.2,
-        b.0,
-        b.1,
-        b.2,
+        describe(action),
         if save { " (slots updated)" } else { " (live only)" }
     );
     Ok(())
